@@ -78,15 +78,15 @@ public class CameraController {
      * regular (non-processed) images to the SmartDash */
     turretCam = camServer.startAutomaticCapture(TURRET_CAM_NAME, TURRET_CAM_ID);
     gearCam = camServer.startAutomaticCapture(GEAR_CAM_NAME, GEAR_CAM_ID);
+    
+    /* Configure settings like exposure, white balance, etc. */
+    configCamForVision(turretCam);
+    configCamForRegularViewing(gearCam);
 
     /* Construct the CvSink & CvSource used to get "Mats" for processing in
      * openCV and to push those processed images to the SmartDash, respectively */
     turretCamFrameGrabber = camServer.getVideo(turretCam);
     outputStream = camServer.putVideo("OpenCV Stream", IMAGE_WIDTH_IN_PIXELS, IMAGE_HEIGHT_IN_PIXELS);
-    
-    /* Configure settings like exposure, white balance, etc. */
-    configCamForVision(turretCam);
-    configCamForRegularViewing(gearCam);
     
     /* Gives the Target class info necessary for it's calculations. This might be temporary */
     Target.calculateFocalLength(IMAGE_WIDTH_IN_PIXELS, IMAGE_HEIGHT_IN_PIXELS);
