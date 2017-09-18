@@ -14,24 +14,15 @@ import org.opencv.imgproc.Moments;
 
 public class Target {
   // Known Geometry
-  public static final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
-  public static final double TURRET_CAM_ANGLE_FROM_FLOOR_RADIANS = Math.toRadians(TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES);
-  public static final double TURRET_CAM_HEIGHT_FROM_FLOOR_INCHES = 57.0;
-  public static final double TURRET_CAM_HEIGHT_FROM_FLOOR_METERS = Target.getMeters(TURRET_CAM_HEIGHT_FROM_FLOOR_INCHES);
-  public static final double CENTER_OF_TARGET_HEIGHT_FROM_FLOOR_INCHES = 127.5;
-  public static final double CENTER_OF_TARGET_HEIGHT_FROM_FLOOR_METERS = Target.getMeters(CENTER_OF_TARGET_HEIGHT_FROM_FLOOR_INCHES);
+  // (X inches) * (0.0254 meters / inch)
+  public static final double CENTER_OF_TARGET_HEIGHT_FROM_FLOOR_METERS = ((7 * 12) + 2) * 0.0254;
   public static final double CAM_TO_TARGET_VERTICAL_DISTANCE_METERS = CENTER_OF_TARGET_HEIGHT_FROM_FLOOR_METERS
-                                                                       - TURRET_CAM_HEIGHT_FROM_FLOOR_METERS;
+                                                                       - CameraController.getInstance().getTurretCamHeightFromFloor();
+  public static final double TURRET_TO_TARGET_VERTICAL_DISTANCE_METERS = CENTER_OF_TARGET_HEIGHT_FROM_FLOOR_METERS;
   /* The upper band of the target is 4 inches tall, 
    * and the diameter of the cylinder it's wrapped around is 15 inches.
    * This means that, when viewed head on, the target should appear as a 15x4 rectangle. */
   private static final double DESIRED_CONTOUR_ASPECT_RATIO = 15/4.0;
-  /* The degrees per pixel values can be used in place of the focal length calculation if the focal length isn't known.
-   * This will yield an error that is less correct, but should ultimately get you to the desired position */
-  private static final double DEGREES_PER_PIXEL_X = 0.15;
-  private static final double DEGREES_PER_PIXEL_Y = 0.15;
-  private static final double SUPPOSED_DIAGONAL_FOV = 68.5;
-  private static double FOCAL_LENGTH_IN_PIXELS = 1;
   
   // Target Filter Preferences
   private static double minArea = 50;
@@ -185,18 +176,18 @@ public class Target {
   
   public double getErrorInDegreesX() {
     if (errorInDegreesX == 361) {
-      double errorInPixels = this.getCenter().x - (CameraController.getInstance().getImageWidth() / 2.0);
-      //errorInDegreesX = errorInPixels * DEGREES_PER_PIXEL_X;
-      errorInDegreesX = Math.toDegrees(Math.atan(errorInPixels / FOCAL_LENGTH_IN_PIXELS));
+      double errorInPixels = this.getCenter().x - CameraController.getInstance().getImageCenterX();
+      //errorInDegreesX = errorInPixels * CameraController.DEGREES_PER_PIXEL_X;
+      errorInDegreesX = Math.toDegrees(Math.atan(errorInPixels / CameraController.getInstance().getFocalLengthX()));
     }
     return errorInDegreesX;
   }
   
   public double getErrorInDegreesY() {
     if (errorInDegreesY == 361) {
-      double errorInPixels = (CameraController.getInstance().getImageHeight() / 2.0) - this.getCenter().y;
-      //errorInDegreesY = errorInPixels * DEGREES_PER_PIXEL_Y;
-      errorInDegreesY = Math.toDegrees(Math.atan(errorInPixels / FOCAL_LENGTH_IN_PIXELS));
+      double errorInPixels = CameraController.getInstance().getImageCenterY() - this.getCenter().y;
+      //errorInDegreesY = errorInPixels * CameraController.DEGREES_PER_PIXEL_Y;
+      errorInDegreesY = Math.toDegrees(Math.atan(errorInPixels / CameraController.getInstance().getFocalLengthY()));
     }
     return errorInDegreesY;
   }
@@ -209,26 +200,10 @@ public class Target {
    */
   public double getDistance() {
     if (distance == -1) {
-      double totalAngle = this.getErrorInDegreesY() + TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES;
+      double totalAngle = this.getErrorInDegreesY() + CameraController.getInstance().getTurretCamAngleFromFloor();
       distance = CAM_TO_TARGET_VERTICAL_DISTANCE_METERS / Math.tan(Math.toRadians(totalAngle));
     }
     return distance;
-  }
-  
-  /**
-   * Used to help determine the focal length for now.
-   * Not sure if this will ultimately stick around.
-   * @param width
-   * @param height
-   */
-  public static void calculateFocalLength(int width, int height) {
-    double numeratorSquared = Math.pow(width/2.0, 2) + Math.pow(height/2.0, 2);
-    double denominator = Math.tan(Math.toRadians(SUPPOSED_DIAGONAL_FOV / 2.0));
-    FOCAL_LENGTH_IN_PIXELS = Math.sqrt(numeratorSquared) / denominator;
-  }
-  
-  public static void setFocalLength(double length) {
-    FOCAL_LENGTH_IN_PIXELS = length;
   }
   
   /*

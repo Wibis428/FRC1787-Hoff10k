@@ -188,8 +188,8 @@ public class Robot extends IterativeRobot {
         turret.getPIDController().setPID(turretP, turretI, turretD);
         double turretTolerance = prefs.getDouble("turretDegreesTolerance", 0);
         turret.getPIDController().setAbsoluteTolerance(turretTolerance); 
-        double testFocalLength = prefs.getDouble("testFocalLength", 146.9);
-        Target.setFocalLength(testFocalLength);
+        //double testFocalLength = prefs.getDouble("testFocalLength", 1);
+        //camController.setFocalLength(testFocalLength);
         turret.getPIDController().enable();
       }
       shooter.trackTarget();

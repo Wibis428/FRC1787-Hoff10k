@@ -34,9 +34,12 @@ public class Flywheel {
                                                                1.0/80, flywheelEncoder, flywheelMotor, 
                                                                PIDController.kDefaultPeriod);
 
-  // Geometric Constants (in inches)
-  private final double FLYWHEEL_RADIUS = 0;
+  // Geometric Constants (in meters)
+  //(X inches) * (0.0254 meters / inch)
+  private final double FLYWHEEL_RADIUS = 1 * 0.0254;
   private final double FLYWHEEL_CIRCUMFERENCE = 2 * Math.PI * FLYWHEEL_RADIUS;
+  private final double EXIT_ANGLE_DEGREES = 1;
+  private final double EXIT_ANGLE_RADIANS = Math.toRadians(EXIT_ANGLE_DEGREES);
   
   // Singleton Instance
   private static final Flywheel instance = new Flywheel();
@@ -70,18 +73,21 @@ public class Flywheel {
      * the method that's commented out below should work in a physics friendly world 
      * (i.e. no air resistance, no holes or spin on the ball, the ball rolls without slipping in the turret), 
      * but that's not the world we live in. Still, it probably wouldn't be a bad idea to try it out 
-     * and see how close it is. 
+     * and see how close it is. If you're going to try it out, make sure to comment out the last line of this method
+     * first. Otherwise, the calculation will be overridden.
      * */
     
-    double numeratorSquared = (1/2) * (-9.81) * Math.pow(distance / Math.cos(Target.TURRET_CAM_ANGLE_FROM_FLOOR_RADIANS), 2);
-    double denominatorSquared = Target.CAM_TO_TARGET_VERTICAL_DISTANCE_METERS 
-                                  - (distance * Math.tan(Target.TURRET_CAM_ANGLE_FROM_FLOOR_RADIANS));
+    
+    double numeratorSquared = (1.0 / 2) * (-9.81) * Math.pow(distance / Math.cos(EXIT_ANGLE_RADIANS), 2);
+    double denominatorSquared = Target.TURRET_TO_TARGET_VERTICAL_DISTANCE_METERS - (distance * Math.tan(EXIT_ANGLE_RADIANS));
     double requiredExitVelocity = Math.sqrt(numeratorSquared / denominatorSquared);
-    // (Meters / Second) * (1 Foot / 0.3048 Meters) = Feet / Second
-    // (Feet / Second) * (12 Inches / Foot) = Inches / Second
-    // (Inches / Second) * (1 Revolution / CIRCUMFERENCE inches) = Revolutions / Second
-    double calculatedSetpoint = (requiredExitVelocity * (1 / 0.3048) * (12) * (1 / FLYWHEEL_CIRCUMFERENCE)) * 2;
+    
+    // (Meters / Second) * (1 Revolution / CIRCUMFERENCE meters) = Revolutions / Second
+    // Theoretically, the translational velocity of the ball will be half of the tangential velocity of the edge of the flywheel.
+    // Therefore, for the ball to achieve the requiredExitVelocity, the edge of the flywheel must be moving twice as fast.
+    double calculatedSetpoint = (requiredExitVelocity * 2 * (1.0 / FLYWHEEL_CIRCUMFERENCE));
     flywheelController.setSetpoint(calculatedSetpoint);
+    
     
     flywheelController.setSetpoint(distance);
   }
