@@ -5,20 +5,16 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class AutoMethods {
 
-  private SendableChooser<Integer> autoChooser;
-
+  private SendableChooser<Integer> autoChooser = new SendableChooser<Integer>();
   private int selectedAuto;
 
   public AutoMethods() {
-    autoChooser = new SendableChooser<Integer>();
-    addOptionsToChooser();
-    SmartDashboard.putData("Auto Chooser", autoChooser);
-  }
-
-  private void addOptionsToChooser() {
+    // Add options to chooser
     autoChooser.addDefault("auto1", 1);
     autoChooser.addObject("auto2", 2);
     autoChooser.addObject("auto3", 3);
+    
+    SmartDashboard.putData("Auto Chooser", autoChooser);
   }
 
   public void getSelectedAutoRoutine() {
@@ -28,10 +24,22 @@ public class AutoMethods {
   public void runSelectedAutoRoutine() {
     if (selectedAuto == 1) {
       auto1();
+    } else if (selectedAuto == 2) {
+      auto2();
+    } else if (selectedAuto == 3) {
+      auto3();
     }
   }
 
   public void auto1() {
 
+  }
+  
+  public void auto2() {
+    
+  }
+  
+  public void auto3() {
+    
   }
 }

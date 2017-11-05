@@ -35,16 +35,16 @@ public class CustomPIDController extends PIDController {
    */
   @Override
   public synchronized boolean onTarget() {
-    return Math.abs(this.getError()) < absoluteTolerance;
+    return Math.abs(this.getError()) <= absoluteTolerance;
   }
   
   /**
    * Sets the the acceptable range of errors to 
-   * (-tolerance, tolerance)
+   * [-tolerance, tolerance]
    */
   @Override
   public synchronized void setAbsoluteTolerance(double tolerance) {
-    absoluteTolerance = tolerance;
+    absoluteTolerance = Math.abs(tolerance);
   }
   
   /**

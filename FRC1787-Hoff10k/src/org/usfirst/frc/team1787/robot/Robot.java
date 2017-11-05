@@ -37,14 +37,16 @@ public class Robot extends IterativeRobot {
   private final int EXPELL_BUTTON = 2;
   
   private final int WINCH_CLIMB_BUTTON = 8;
-  private final int WINCH_DESCEND_BUTTON = 7;
+  //private final int WINCH_DESCEND_BUTTON = 7;
   /* The ratchet on the winch motor prevents the winch from rotating in the opposite direction,
-   * so we don't have to check if the WINCH_DESCEND_BUTTON is being pressed. However, it's value remains
+   * so the WINCH_DESCEND_BUTTON is never actually being used. However, it's value remains
    * here for if we ever decide to remove the ratchet. */
   
   private final int TOGGLE_SHOOTER_CONTROL_BUTTON = 2;
+  private int shooterControlMode = 0;
   private final int TOGGLE_CAM_BUTTON = 10;
   
+  // Testing Mode Stuff
   private final int TOGGLE_TUNING_MODE_BUTTON = -1;
   private final int CYCLE_THROUGH_TUNING_MODES_BUTTON = -1;
   private boolean tuningModeActive = false;
@@ -146,30 +148,33 @@ public class Robot extends IterativeRobot {
       SmartDashboard.putBoolean("Tuning Mode Active", tuningModeActive);
     }
     
-    if (!tuningModeActive) {
-      // Shooter
-      if (leftStick.getSinglePress(TOGGLE_SHOOTER_CONTROL_BUTTON)) {
-        if (shooter.pidIsEnabled()) {
-          shooter.stop(); // disables PID Controllers
-        } else {
-          shooter.enablePIDControllers();
-        }
-      }
-      
-      if (shooter.pidIsEnabled()) {
-        shooter.fullAutoShooting();
-      } else {
-        shooter.manualControl(leftStick);
-      }
-
-      // Cams (no processing)
-      if (rightStick.getSinglePress(TOGGLE_CAM_BUTTON)) {
-        camController.toggleCamStream();
-      }
-    } else {
+    if (tuningModeActive) {
       runTuningCode();
+      return;
+    }
+    
+    // Shooter
+    if (leftStick.getSinglePress(TOGGLE_SHOOTER_CONTROL_BUTTON)) {
+      shooter.stop();
+      shooterControlMode =  (shooterControlMode + 1) % 2;
+    }
+    
+    if (shooterControlMode == 0) {
+      // Shooter Mode 0 = Manual Control
+      shooter.manualControl(leftStick);
+    } else if (shooterControlMode == 1) {
+      // Shooter Mode 1 = Full Auto Shooting
+      if (!shooter.pidIsEnabled()) {
+        shooter.enablePIDControllers();
+      }
+      shooter.fullAutoShooting();
     }
     shooter.publishDataToSmartDash();
+    
+    // Cams (no processing)
+    if (rightStick.getSinglePress(TOGGLE_CAM_BUTTON)) {
+      camController.toggleCamStream();
+    }
     camController.publishDataToSmartDash();
   }
   
@@ -228,6 +233,10 @@ public class Robot extends IterativeRobot {
       Target.setShapeScoreBounds(minShapeScore, maxShapeScore);
       camController.showContoursfilter(true);
     }
+    
+    // Publish all data to smart dash
+    shooter.publishDataToSmartDash();
+    camController.publishDataToSmartDash();
   }
 
   /**

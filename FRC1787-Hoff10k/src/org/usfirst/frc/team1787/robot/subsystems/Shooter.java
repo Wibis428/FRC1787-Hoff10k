@@ -1,6 +1,7 @@
 package org.usfirst.frc.team1787.robot.subsystems;
 
 import org.usfirst.frc.team1787.robot.vision.CameraController;
+import org.usfirst.frc.team1787.robot.vision.Target;
 
 import edu.wpi.first.wpilibj.Joystick;
 
@@ -32,12 +33,14 @@ public class Shooter {
   
   public boolean pidIsEnabled() {
     return turret.getPIDController().isEnabled() ||
-        flywheel.getPIDController().isEnabled();
+           flywheel.getPIDController().isEnabled();
   }
   
   public void fullAutoShooting() {
     trackTarget();
-    flywheel.setCalculatedSetpoint(camController.getCurrentTarget().getDistance());
+    double horizontalDistanceToTarget = camController.getCurrentTarget().getDistance();
+    double verticalDistanceToTarget = Target.TURRET_TO_TARGET_VERTICAL_DISTANCE;
+    flywheel.setCalculatedSetpoint(horizontalDistanceToTarget, verticalDistanceToTarget);
     if (turret.getPIDController().onTarget() && flywheel.getPIDController().onTarget()) {
       feeder.feed();
     } else {

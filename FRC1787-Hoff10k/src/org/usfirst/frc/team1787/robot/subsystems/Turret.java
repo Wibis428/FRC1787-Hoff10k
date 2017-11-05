@@ -41,8 +41,8 @@ public class Turret {
     return turretController;
   }
   
-  public double getGyroAngle() {
-    return gyro.getAngle();
+  public AnalogGyro getGyro() {
+    return gyro;
   }
   
   public void zeroSensors() {

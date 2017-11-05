@@ -6,6 +6,7 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
+import org.usfirst.frc.team1787.robot.utils.UnitConverter;
 
 import edu.wpi.cscore.CvSink;
 import edu.wpi.cscore.CvSource;
@@ -135,14 +136,8 @@ public class CameraController {
    * and we don't have to worry about that change having any effect on the performance of the turret.
    */
   
-  private final int IMAGE_WIDTH_IN_PIXELS = 160;
-  private final int IMAGE_HEIGHT_IN_PIXELS = 120;
-  /* The true center of the image isn't at width/2 or height/2 because of 0 indexing.
-   * For example, an image with a width of 120 pixels has pixels from 0 to 119 inclusive, 
-   * for a total of 120. Therefore the midpoint is 59.5 = (120 - 1) / 2.0; 
-   * */
-  private final double IMAGE_CENTER_X = (IMAGE_WIDTH_IN_PIXELS - 1) / 2.0;
-  private final double IMAGE_CENTER_Y = (IMAGE_HEIGHT_IN_PIXELS - 1) / 2.0;
+  public static final int IMAGE_WIDTH_PIXELS = 160;
+  public static final int IMAGE_HEIGHT_PIXELS = 120;
   
   private final String TURRET_CAM_NAME = "turretCam";
   private final String GEAR_CAM_NAME = "gearCam";
@@ -159,18 +154,17 @@ public class CameraController {
   // Physical Camera Properties
   
   // These FOV values are just a place holders. The actual horizontal and vertical FOV still needs to be calculated.
-  private final double HORIZONTAL_FOV_DEGREES = 90;
-  private final double VERTICAL_FOV_DEGREES = 90;
-  private final double FOCAL_LENGTH_X = this.calculateFocalLength(IMAGE_WIDTH_IN_PIXELS, HORIZONTAL_FOV_DEGREES);
-  private final double FOCAL_LENGTH_Y = this.calculateFocalLength(IMAGE_HEIGHT_IN_PIXELS, VERTICAL_FOV_DEGREES);
+  private static final double HORIZONTAL_FOV_DEGREES = 90;
+  private static final double VERTICAL_FOV_DEGREES = 90;
+  public static final double FOCAL_LENGTH_PIXELS_X = calculateFocalLength(IMAGE_WIDTH_PIXELS, HORIZONTAL_FOV_DEGREES);
+  public static final double FOCAL_LENGTH_PIXELS_Y = calculateFocalLength(IMAGE_HEIGHT_PIXELS, VERTICAL_FOV_DEGREES);
   /* The degrees per pixel values can be used in place of the focal length calculation if the focal length isn't known.
    * This will yield an error that is less correct, but should ultimately get you to the desired position */
   public static final double DEGREES_PER_PIXEL_X = 0.15;
   public static final double DEGREES_PER_PIXEL_Y = 0.15;
   
-  private final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
-  // (X inches) * (0.0254 meters / inch)
-  private final double TURRET_CAM_HEIGHT_FROM_FLOOR_METERS = 57.0 * 0.0254;
+  public static final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
+  public static final double TURRET_CAM_HEIGHT_FROM_FLOOR = UnitConverter.inchesToMeters(57);
   
   // Servers, Sinks and Mats (images)
   /* The following variables are used to get images for processing,
@@ -219,7 +213,7 @@ public class CameraController {
     // Construct the CvSink which is used to grab frames from the turret cam for processing.
     turretCamFrameGrabber = camServer.getVideo(turretCam);
     // Construct the CvSource which is used to push processed frames to the dashboard for viewing.
-    outputStream = camServer.putVideo("OpenCV Stream", IMAGE_WIDTH_IN_PIXELS, IMAGE_HEIGHT_IN_PIXELS);
+    outputStream = camServer.putVideo("OpenCV Stream", IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
   }
   
   /**
@@ -238,17 +232,16 @@ public class CameraController {
     HSVFilter(originalFrame, hsvLowerBounds, hsvUpperBounds, processedFrame);
     
     /* Search that binary image for contours, and store the detected contours in a list */
-    ArrayList<MatOfPoint> listOfContours = findExternalContours(processedFrame);
+    ArrayList<Target> listOfTargets = findPotentialTargets(processedFrame);
     
     /* Sort through the list of contours, measuring different aspects of them to determine 
      * which of them, if any, is most likely the target */
-    currentTarget = Target.getTarget(listOfContours);
-    if (currentTarget.getArea() != 0) {
-      // if a valid target is found, draw it on the orgininalFrame in green
-      currentTarget.drawBoundingBox(originalFrame, COLOR_GREEN);
-      currentTarget.drawCentroid(originalFrame, COLOR_GREEN);
-    }
-    // Push the original frame to the smart dash
+    currentTarget = Target.getStrongestCandidate(listOfTargets);
+    
+    // if a valid target is found, it will be drawn on the orgininalFrame in green
+    currentTarget.drawBoundingBox(originalFrame, COLOR_GREEN);
+    currentTarget.drawCentroid(originalFrame, COLOR_GREEN);
+    // Push the original frame to the smartdash
     outputStream.putFrame(originalFrame);
   }
   
@@ -263,9 +256,9 @@ public class CameraController {
   public void showContoursfilter(boolean overlay) {
     turretCamFrameGrabber.grabFrameNoTimeout(originalFrame);
     HSVFilter(originalFrame, hsvLowerBounds, hsvUpperBounds, processedFrame);
-    ArrayList<MatOfPoint> listOfContours = findExternalContours(processedFrame);
-    Target.filterArea(listOfContours);
-    Target.filterShape(listOfContours);
+    ArrayList<Target> listOfTargets = findPotentialTargets(processedFrame);
+    Target.filterArea(listOfTargets);
+    Target.filterShape(listOfTargets);
     if (!overlay) {
       Core.bitwise_xor(originalFrame, originalFrame, originalFrame);
       /* Comparing the image to itself using a bitwise exclusive or operator
@@ -274,7 +267,7 @@ public class CameraController {
        * inefficient, as it caused the RIO to run out of memory.
        */
     }
-    drawExternalContours(listOfContours, originalFrame);
+    drawListOfTargets(listOfTargets, originalFrame);
     outputStream.putFrame(originalFrame);
   }
   
@@ -291,17 +284,18 @@ public class CameraController {
   /*
    * The methods above this point each represent different vision pipeliens.
    * A pipleline is just the name given to a series of image processing steps put together
+   * into one function
    * 
    * The methods below this point can be used a building blocks to make more vision pipelines
    */
   
   /**
-   * @param listOfContours The list of contours to draw.
+   * @param listOfTargets The list of targets whose contours to draw.
    * @param frame The image to draw on.
    */
-  private void drawExternalContours(ArrayList<MatOfPoint> listOfContours, Mat frame) {
-    for (int i = listOfContours.size()-1; i >= 0; i--) {
-      Imgproc.drawContours(frame, listOfContours, i, COLORS[i % COLORS.length]);
+  private void drawListOfTargets(ArrayList<Target> listOfTargets, Mat frame) {
+    for (int i = listOfTargets.size()-1; i >= 0; i--) {
+      listOfTargets.get(i).drawContour(frame, COLORS[i % COLORS.length]);
     }
   }
   
@@ -309,13 +303,20 @@ public class CameraController {
    * @param frame The binary image to be analyzed
    * @return A list of the contours found in the binary image.
    */
-  private ArrayList<MatOfPoint> findExternalContours(Mat frame) {
+  private ArrayList<Target> findPotentialTargets(Mat frame) {
+    // Find contours in the image
     ArrayList<MatOfPoint> listOfContours = new ArrayList<MatOfPoint>();
     Mat hierarchy = new Mat();
     int mode = Imgproc.RETR_EXTERNAL;
     int method = Imgproc.CHAIN_APPROX_SIMPLE;
     Imgproc.findContours(frame, listOfContours, hierarchy, mode, method);
-    return listOfContours;
+    
+    // Convert contours to Targets
+    ArrayList<Target> output = new ArrayList<Target>();
+    for (int i = listOfContours.size()-1; i >= 0; i--) {
+      output.add(new Target(listOfContours.get(i)));
+    }
+    return output;
   }
   
   /**
@@ -336,54 +337,17 @@ public class CameraController {
     hsvUpperBounds = new Scalar(hMax, sMax, vMax);
   }
   
+  public void setHSVBounds(Scalar minBounds, Scalar maxBounds) {
+    hsvLowerBounds = minBounds;
+    hsvUpperBounds = maxBounds;
+  }
+  
   /*
    * Methods above this point are the basic building blocks that can be used to make vision pipelines
    * 
    * Methods below this point don't really have anything to do with open CV, and are more related to 
    * getting and setting different properties of the camera.
    */
-  
-  public Target getCurrentTarget() {
-    return currentTarget;
-  }
-  
-  public double getImageCenterX() {
-    return IMAGE_CENTER_X;
-  }
-  
-  public double getImageCenterY() {
-    return IMAGE_CENTER_Y;
-  }
-  
-  /**
-   * @return The focal length in terms of pixel width
-   */
-  public double getFocalLengthX() {
-    return FOCAL_LENGTH_X;
-  }
-  
-  /**
-   * @return The focal length in terms of pixel height
-   */
-  public double getFocalLengthY() {
-    return FOCAL_LENGTH_Y;
-  }
-  
-  /**
-   * @return the angle of the turret cam from the floor
-   * in degrees
-   */
-  public double getTurretCamAngleFromFloor() {
-    return TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES;
-  }
-  
-  /**
-   * @return The height of the turret cam from the floor
-   * in meters
-   */
-  public double getTurretCamHeightFromFloor() {
-    return TURRET_CAM_HEIGHT_FROM_FLOOR_METERS;
-  }
   
   /**
    * This version of calculateFocalLength should be used
@@ -393,15 +357,12 @@ public class CameraController {
    * @param fov
    * @return
    */
-  private double calculateFocalLength(int numOfPixels, double fov) {
+  private static double calculateFocalLength(int numOfPixels, double fov) {
     // Note the dimension is just split in half instead of finding the exact center, 
     //because we're working with physical properties, and the 0th pixel is still 1 pixel.
     double numerator = numOfPixels / 2.0;
     double denominator = Math.tan(Math.toRadians(fov/2.0));
-    if (denominator == 0) {
-      return 1;
-    }
-    return numerator / denominator;
+    return (denominator == 0) ? 1 : (numerator / denominator);
   }
   
   
@@ -410,7 +371,7 @@ public class CameraController {
     cam.setExposureManual(0);
     cam.setBrightness(100);
     cam.setWhiteBalanceManual(WhiteBalance.kFixedIndoor);
-    cam.setResolution(IMAGE_WIDTH_IN_PIXELS, IMAGE_HEIGHT_IN_PIXELS);
+    cam.setResolution(IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
   }
   
   public void configCamForRegularViewing(UsbCamera cam) {
@@ -418,12 +379,13 @@ public class CameraController {
     cam.setExposureAuto();
     cam.setBrightness(50);
     cam.setWhiteBalanceAuto();
-    cam.setResolution(IMAGE_WIDTH_IN_PIXELS, IMAGE_HEIGHT_IN_PIXELS);
+    cam.setResolution(IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
   }
   
   /*
    * Methods below this point don't fit into any other categories, and are fairly basic.
    * They don't really have much else to do with the rest of the code and sort of exist on their own.
+   * There are also a couple basic getters.
    */
   
   public void toggleCamStream() {
@@ -454,7 +416,7 @@ public class CameraController {
   }
   
   public void publishDataToSmartDash() {
-    if (currentTarget.getArea() == 0) {
+    if (currentTarget.getArea() <= 0) {
       SmartDashboard.putBoolean("Target Aquired", false);
     } else {
       SmartDashboard.putBoolean("Target Aquired", true);
@@ -462,6 +424,10 @@ public class CameraController {
     SmartDashboard.putNumber("Distance", currentTarget.getDistance());
     SmartDashboard.putNumber("targetErrorX", currentTarget.getErrorInDegreesX());
     SmartDashboard.putNumber("targetErrorY", currentTarget.getErrorInDegreesY());
+  }
+  
+  public Target getCurrentTarget() {
+    return currentTarget;
   }
   
   public static CameraController getInstance() {

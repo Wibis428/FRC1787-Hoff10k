@@ -1,7 +1,7 @@
 package org.usfirst.frc.team1787.robot.subsystems;
 
 import org.usfirst.frc.team1787.robot.utils.CustomPIDController;
-import org.usfirst.frc.team1787.robot.vision.Target;
+import org.usfirst.frc.team1787.robot.utils.UnitConverter;
 
 import com.ctre.CANTalon;
 
@@ -35,8 +35,8 @@ public class Flywheel {
                                                                PIDController.kDefaultPeriod);
 
   // Geometric Constants (in meters)
-  //(X inches) * (0.0254 meters / inch)
-  private final double FLYWHEEL_RADIUS = 1 * 0.0254;
+  // 4.875 inch flywheel diameter
+  private final double FLYWHEEL_RADIUS = UnitConverter.inchesToMeters(4.875/2.0);
   private final double FLYWHEEL_CIRCUMFERENCE = 2 * Math.PI * FLYWHEEL_RADIUS;
   private final double EXIT_ANGLE_DEGREES = 1;
   private final double EXIT_ANGLE_RADIANS = Math.toRadians(EXIT_ANGLE_DEGREES);
@@ -57,17 +57,21 @@ public class Flywheel {
     flywheelController.setAbsoluteTolerance(FLYWHEEL_PID_ABSOLUTE_TOLERENCE_IN_REVOLUTIONS_PER_SECOND);
   }
   
+  // PID Controller Methods
+  
   public CustomPIDController getPIDController() {
     return flywheelController;
   }
   
   /**
    * Sets the flywheel to the appropriate speed for the given distance
-   * @param distance The distance to the target in meters
+   * @param distanceX The horizontal distance to the target in meters
+   * @param distanceY The vertical distance to the target in meters
    */
-  public void setCalculatedSetpoint(double distance) {
+  public void setCalculatedSetpoint(double distanceX, double distanceY) {
     /* TO DO: figure out how to determine the appropriate
-     * flywheel speed for a given distance. 
+     * flywheel speed for a given horizontal distance and vertical distance
+     * to the target. 
      * 
      * Because it was determined from standard kinematic equations, 
      * the method that's commented out below should work in a physics friendly world 
@@ -77,24 +81,31 @@ public class Flywheel {
      * first. Otherwise, the calculation will be overridden.
      * */
     
-    
-    double numeratorSquared = (1.0 / 2) * (-9.81) * Math.pow(distance / Math.cos(EXIT_ANGLE_RADIANS), 2);
-    double denominatorSquared = Target.TURRET_TO_TARGET_VERTICAL_DISTANCE_METERS - (distance * Math.tan(EXIT_ANGLE_RADIANS));
+    double numeratorSquared = (-9.81 / 2) * Math.pow(distanceX / Math.cos(EXIT_ANGLE_RADIANS), 2);
+    double denominatorSquared = distanceY - (distanceX * Math.tan(EXIT_ANGLE_RADIANS));
     double requiredExitVelocity = Math.sqrt(numeratorSquared / denominatorSquared);
     
+    /* Theoretically, the translational velocity of the ball will be half of the tangential velocity of the edge of the flywheel.
+     * Therefore, for the ball to achieve the requiredExitVelocity, the edge of the flywheel must be moving twice as fast. */
     // (Meters / Second) * (1 Revolution / CIRCUMFERENCE meters) = Revolutions / Second
-    // Theoretically, the translational velocity of the ball will be half of the tangential velocity of the edge of the flywheel.
-    // Therefore, for the ball to achieve the requiredExitVelocity, the edge of the flywheel must be moving twice as fast.
-    double calculatedSetpoint = (requiredExitVelocity * 2 * (1.0 / FLYWHEEL_CIRCUMFERENCE));
+    double calculatedSetpoint = (2 * requiredExitVelocity * (1.0 / FLYWHEEL_CIRCUMFERENCE));
     flywheelController.setSetpoint(calculatedSetpoint);
     
-    
-    flywheelController.setSetpoint(distance);
+    // Ignore the calculated setpoint for now, because it needs to be tested.
+    flywheelController.setSetpoint(distanceX);
   }
+  
+  // Encoder Methods
   
   public void zeroSensors() {
     flywheelEncoder.reset();
   }
+  
+  public Encoder getEncoder() {
+    return flywheelEncoder;
+  }
+  
+  // Other Methods
   
   public void manualControl(double value) {
     if (flywheelController.isEnabled()) {
@@ -109,7 +120,7 @@ public class Flywheel {
 
   public void publishDataToSmartDash() {
     SmartDashboard.putBoolean("Flywheel PID Enabled", flywheelController.isEnabled());
-    SmartDashboard.putNumber("Flywheel Encoder Ticks", flywheelEncoder.get());
+    SmartDashboard.putNumber("Flywheel Encoder Ticks", flywheelEncoder.getRaw());
     SmartDashboard.putNumber("flywheelRPS", flywheelEncoder.getRate());
     SmartDashboard.putNumber("flywheelError", flywheelController.getError());
     SmartDashboard.putNumber("flywheelOutputVoltage", flywheelController.get());

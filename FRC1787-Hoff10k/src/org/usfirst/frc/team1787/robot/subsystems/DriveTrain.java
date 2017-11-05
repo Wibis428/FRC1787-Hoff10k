@@ -1,7 +1,6 @@
 package org.usfirst.frc.team1787.robot.subsystems;
 
-import org.usfirst.frc.team1787.robot.vision.Target;
-
+import org.usfirst.frc.team1787.robot.utils.UnitConverter;
 import com.ctre.CANTalon;
 
 import edu.wpi.first.wpilibj.Encoder;
@@ -29,7 +28,7 @@ public class DriveTrain {
   private final int RIGHT_ENCODER_A_CHANNEL = 0;
   private final int RIGHT_ENCODER_B_CHANNEL =1;
   // determined through testing
-  private final double INCHES_PER_PULSE = 0.01249846;
+  private final double METERS_PER_PULSE = UnitConverter.inchesToMeters(0.01249846);
   private Encoder leftEncoder = new Encoder(LEFT_ENCODER_A_CHANNEL, LEFT_ENCODER_B_CHANNEL);
   private Encoder rightEncoder = new Encoder(RIGHT_ENCODER_A_CHANNEL, RIGHT_ENCODER_B_CHANNEL);
 
@@ -45,8 +44,8 @@ public class DriveTrain {
   private static final DriveTrain instance = new DriveTrain();
 
   private DriveTrain() {
-    leftEncoder.setDistancePerPulse(INCHES_PER_PULSE);
-    rightEncoder.setDistancePerPulse(INCHES_PER_PULSE);
+    leftEncoder.setDistancePerPulse(METERS_PER_PULSE);
+    rightEncoder.setDistancePerPulse(METERS_PER_PULSE);
   }
   
   // Drive Train Related Methods
@@ -96,36 +95,30 @@ public class DriveTrain {
     rightEncoder.reset();
   }
   
-  public double getLeftVelocity(boolean meters) {
-    return meters ? Target.getMeters(leftEncoder.getRate()) : leftEncoder.getRate();
+  public Encoder getLeftEncoder() {
+    return leftEncoder;
   }
   
-  public double getLeftDistance(boolean meters) {
-    return meters ? Target.getMeters(leftEncoder.getDistance()) : leftEncoder.getDistance();
-  }
-  
-  public double getRightVelocity(boolean meters) {
-    return meters ? Target.getMeters(rightEncoder.getRate()) : leftEncoder.getRate();
-  }
-  
-  public double getRightDistance(boolean meters) {
-    return meters ? Target.getMeters(rightEncoder.getDistance()) : rightEncoder.getDistance();
+  public Encoder getRightEncoder() {
+    return rightEncoder;
   }
   
   /**
    * @param meters Whether or not to return the speed in m/s or in/s
    */
-  public double getAvgSpeed(boolean meters) {
-    return (getLeftVelocity(meters) + getRightVelocity(meters)) / 2.0;
+  public double getAvgSpeed() {
+    return (leftEncoder.getRate() + rightEncoder.getRate()) / 2.0;
   }
+  
+  // Other Methods
 
   public void publishDataToSmartDash() {
-    SmartDashboard.putNumber("Average Speed (m/s)", getAvgSpeed(true));
+    SmartDashboard.putNumber("Average Speed (m/s)", getAvgSpeed());
     SmartDashboard.putBoolean("Low Gear", isInLowGear());
-    SmartDashboard.putNumber("Left Drive Encoder Ticks", leftEncoder.get());
-    SmartDashboard.putNumber("Right Drive Encoder Ticks", rightEncoder.get());
-    SmartDashboard.putNumber("Left Drive Encoder Distance (m)", this.getLeftDistance(true));
-    SmartDashboard.putNumber("Right Drive Encoder Distance (m)", this.getRightDistance(true));
+    SmartDashboard.putNumber("Left Drive Encoder Ticks", leftEncoder.getRaw());
+    SmartDashboard.putNumber("Right Drive Encoder Ticks", rightEncoder.getRaw());
+    SmartDashboard.putNumber("Left Drive Encoder Distance (m)", leftEncoder.getDistance());
+    SmartDashboard.putNumber("Right Drive Encoder Distance (m)", leftEncoder.getDistance());
   }
   
   public static DriveTrain getInstance() {
