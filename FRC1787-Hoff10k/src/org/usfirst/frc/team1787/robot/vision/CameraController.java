@@ -1,11 +1,6 @@
 package org.usfirst.frc.team1787.robot.vision;
 
-import java.util.ArrayList;
-import org.opencv.core.Core;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.Scalar;
-import org.opencv.imgproc.Imgproc;
 import org.usfirst.frc.team1787.robot.utils.UnitConverter;
 
 import edu.wpi.cscore.CvSink;
@@ -14,11 +9,11 @@ import edu.wpi.cscore.UsbCamera;
 import edu.wpi.cscore.VideoCamera.WhiteBalance;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.networktables.NetworkTable;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class CameraController {
-
-  // Cameras
+  
+  // Info about the pinhole camera model, focal length, and FOV:
+  
   /* Relevant Equations for the Pinhole Camera Model
    * 
    * Note that these equations work only when the focal length and the 
@@ -136,79 +131,60 @@ public class CameraController {
    * and we don't have to worry about that change having any effect on the performance of the turret.
    */
   
-  public static final int IMAGE_WIDTH_PIXELS = 160;
-  public static final int IMAGE_HEIGHT_PIXELS = 120;
+  // information about both cameras
+  public final int IMAGE_WIDTH_PIXELS = 160;
+  public final int IMAGE_HEIGHT_PIXELS = 120;
   
-  private final String TURRET_CAM_NAME = "turretCam";
-  private final String GEAR_CAM_NAME = "gearCam";
-  private final int TURRET_CAM_ID = 1;
-  private final int GEAR_CAM_ID = 0;
-  /* The cameras used to be constructed here, 
-   * but there seems to be an issue with passing 
-   * a camera that has already been constructed to 
-   * "startAutomaticCapture()"
-   */
-  private UsbCamera turretCam;
+  // information about the gear cam
   private UsbCamera gearCam;
+  private final int GEAR_CAM_ID = 0;
+  private final String GEAR_CAM_NAME = "gearCam";
   
-  // Physical Camera Properties
+  // information about the turret cam
+  private UsbCamera turretCam;
+  private final int TURRET_CAM_ID = 1;
+  private final String TURRET_CAM_NAME = "turretCam";
   
-  // These FOV values are just a place holders. The actual horizontal and vertical FOV still needs to be calculated.
-  private static final double HORIZONTAL_FOV_DEGREES = 90;
-  private static final double VERTICAL_FOV_DEGREES = 90;
-  public static final double FOCAL_LENGTH_PIXELS_X = calculateFocalLength(IMAGE_WIDTH_PIXELS, HORIZONTAL_FOV_DEGREES);
-  public static final double FOCAL_LENGTH_PIXELS_Y = calculateFocalLength(IMAGE_HEIGHT_PIXELS, VERTICAL_FOV_DEGREES);
+  // physical turret cam properties (used to find position of target relative to camera)
+  private final double HORIZONTAL_FOV_DEGREES = 90;  // The current values for FOV are just place holders.
+  private final double VERTICAL_FOV_DEGREES = 90;    // The actual values still need to be calculated.
+  public final double FOCAL_LENGTH_PIXELS_X = calculateFocalLength(IMAGE_WIDTH_PIXELS, HORIZONTAL_FOV_DEGREES);
+  public final double FOCAL_LENGTH_PIXELS_Y = calculateFocalLength(IMAGE_HEIGHT_PIXELS, VERTICAL_FOV_DEGREES);
   /* The degrees per pixel values can be used in place of the focal length calculation if the focal length isn't known.
    * This will yield an error that is less correct, but should ultimately get you to the desired position */
-  public static final double DEGREES_PER_PIXEL_X = 0.15;
-  public static final double DEGREES_PER_PIXEL_Y = 0.15;
+  public final double DEGREES_PER_PIXEL_X = 0.15;
+  public final double DEGREES_PER_PIXEL_Y = 0.15;
   
-  public static final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
-  public static final double TURRET_CAM_HEIGHT_FROM_FLOOR = UnitConverter.inchesToMeters(57);
+  public final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
+  public final double TURRET_CAM_HEIGHT_FROM_FLOOR = UnitConverter.inchesToMeters(57);
   
-  // Servers, Sinks and Mats (images)
-  /* The following variables are used to get images for processing,
-   * store processed images, and send processed images to the smart dash.
-   * Read the comments in the CameraController constructor and look for 
-   * other places where these variables are used for more info! 
-   * */
+  // objects used to handle all the networking associated with the cameras,
+  // like sending images to the smartdash.
   private CameraServer camServer = CameraServer.getInstance();
   private CvSink turretCamFrameGrabber;
   private CvSource outputStream;
-  private Mat originalFrame = new Mat();
-  private Mat processedFrame = new Mat();
-
-  // HSV Bounds...................new Scalar(H, S, V);
-  private Scalar hsvLowerBounds = new Scalar(75, 200, 30);
-  private Scalar hsvUpperBounds = new Scalar(90, 255, 150);
-  
-  // Colors used to draw contours..........new Scalar(B, G, R);
-  public static final Scalar COLOR_BLACK = new Scalar(0, 0, 0);
-  public static final Scalar COLOR_WHITE = new Scalar(255, 255, 255);
-  public static final Scalar COLOR_BLUE = new Scalar(255, 0, 0);
-  public static final Scalar COLOR_GREEN = new Scalar(0, 255, 0);
-  public static final Scalar COLOR_RED = new Scalar(0, 0, 255);
-  public static final Scalar COLOR_YELLOW = new Scalar(0, 255, 255);
-  public static final Scalar COLOR_PURPLE = new Scalar(255, 0, 255);
-  public static final Scalar COLOR_CYAN = new Scalar(255, 255, 0);
-  private final Scalar[] COLORS = {COLOR_RED, COLOR_YELLOW, COLOR_CYAN, 
-                                   COLOR_GREEN, COLOR_PURPLE, COLOR_BLUE};
-  
-  // Current Target
-  private Target currentTarget = new Target();
+  private final double defaultTimeoutLengthSeconds = 3;
   
   // Singleton Instance
   private static final CameraController instance = new CameraController();
 
   private CameraController() {
+    /* Note: The cameras themselves used to be constructed on
+     * the same line that they're declared,
+     * but there seems to be an issue with passing 
+     * a camera that has already been constructed to 
+     * "startAutomaticCapture()"
+     * I currently have no explanation for why this is.
+     */
+    
     /* Initializes each camera, and links each camera to it's own Mjpeg Server
      * which automatically pushes regular (non-processed) images to the SmartDash */
     turretCam = camServer.startAutomaticCapture(TURRET_CAM_NAME, TURRET_CAM_ID);
     gearCam = camServer.startAutomaticCapture(GEAR_CAM_NAME, GEAR_CAM_ID);
     
     /* Configure settings like resolution, exposure, white balance, etc. */
-    configCamForVision(turretCam);
-    configCamForRegularViewing(gearCam);
+    configCam(turretCam, true); // <- "true" indicates cam will be used for image processing
+    configCam(gearCam, false);
 
     // Construct the CvSink which is used to grab frames from the turret cam for processing.
     turretCamFrameGrabber = camServer.getVideo(turretCam);
@@ -216,183 +192,11 @@ public class CameraController {
     outputStream = camServer.putVideo("OpenCV Stream", IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
   }
   
-  /**
-   * Call this method periodically to run vision! Woot!
-   */
-  public void runVisionProcessing() {
-    /* Get a frame.
-     * Previously, "frameGrabber.grabFrame(orginalFrame)" was called here,
-     * but an update made it so that this method times out under certain circumstances 
-     * which could cause problems. I'm unsure what those circumstances are as of right now, 
-     * but I read on chief delphi that using the "no timeout" version works just like before the update.
-     * */
-    turretCamFrameGrabber.grabFrameNoTimeout(originalFrame);
-    
-    /* Perform an HSV filter on the originalFrame to get a binary image, which is stored in processedFrame */
-    HSVFilter(originalFrame, hsvLowerBounds, hsvUpperBounds, processedFrame);
-    
-    /* Search that binary image for contours, and store the detected contours in a list */
-    ArrayList<Target> listOfTargets = findPotentialTargets(processedFrame);
-    
-    /* Sort through the list of contours, measuring different aspects of them to determine 
-     * which of them, if any, is most likely the target */
-    currentTarget = Target.getStrongestCandidate(listOfTargets);
-    
-    // if a valid target is found, it will be drawn on the orgininalFrame in green
-    currentTarget.drawBoundingBox(originalFrame, COLOR_GREEN);
-    currentTarget.drawCentroid(originalFrame, COLOR_GREEN);
-    // Push the original frame to the smartdash
-    outputStream.putFrame(originalFrame);
-  }
-  
-  /**
-   * Performs an HSV filter, finds contours in the resulting binary image,
-   * filters those contours, then draws the remaining contours. Intended to be
-   * used for turning the contour filter parameters.
-   * @param overlay "true" indicates the contours should be drawn
-   * directly on the given image. "false" indicates the given image
-   * should be made entirely black before drawing the contours.
-   */
-  public void showContoursfilter(boolean overlay) {
-    turretCamFrameGrabber.grabFrameNoTimeout(originalFrame);
-    HSVFilter(originalFrame, hsvLowerBounds, hsvUpperBounds, processedFrame);
-    ArrayList<Target> listOfTargets = findPotentialTargets(processedFrame);
-    Target.filterArea(listOfTargets);
-    Target.filterShape(listOfTargets);
-    if (!overlay) {
-      Core.bitwise_xor(originalFrame, originalFrame, originalFrame);
-      /* Comparing the image to itself using a bitwise exclusive or operator
-       * results in a completely black image. Originally, we used
-       * "frame.setTo(Constants.COLOR_BLACK);", but that was deemed too
-       * inefficient, as it caused the RIO to run out of memory.
-       */
-    }
-    drawListOfTargets(listOfTargets, originalFrame);
-    outputStream.putFrame(originalFrame);
-  }
-  
-  /**
-   * Just performs an HSV filter and sends the resulting binary image to the
-   * dashboard. Intended to be used for tuning the HSV filter.
-   */
-  public void showHSVFilter() {
-    turretCamFrameGrabber.grabFrameNoTimeout(originalFrame);
-    HSVFilter(originalFrame, hsvLowerBounds, hsvUpperBounds, processedFrame);
-    outputStream.putFrame(processedFrame);
-  }
-  
-  /*
-   * The methods above this point each represent different vision pipeliens.
-   * A pipleline is just the name given to a series of image processing steps put together
-   * into one function
-   * 
-   * The methods below this point can be used a building blocks to make more vision pipelines
-   */
-  
-  /**
-   * @param listOfTargets The list of targets whose contours to draw.
-   * @param frame The image to draw on.
-   */
-  private void drawListOfTargets(ArrayList<Target> listOfTargets, Mat frame) {
-    for (int i = listOfTargets.size()-1; i >= 0; i--) {
-      listOfTargets.get(i).drawContour(frame, COLORS[i % COLORS.length]);
-    }
-  }
-  
-  /**
-   * @param frame The binary image to be analyzed
-   * @return A list of the contours found in the binary image.
-   */
-  private ArrayList<Target> findPotentialTargets(Mat frame) {
-    // Find contours in the image
-    ArrayList<MatOfPoint> listOfContours = new ArrayList<MatOfPoint>();
-    Mat hierarchy = new Mat();
-    int mode = Imgproc.RETR_EXTERNAL;
-    int method = Imgproc.CHAIN_APPROX_SIMPLE;
-    Imgproc.findContours(frame, listOfContours, hierarchy, mode, method);
-    
-    // Convert contours to Targets
-    ArrayList<Target> output = new ArrayList<Target>();
-    for (int i = listOfContours.size()-1; i >= 0; i--) {
-      output.add(new Target(listOfContours.get(i)));
-    }
-    return output;
-  }
-  
-  /**
-   * Takes a BGR image, converts it to HSV, then filters the HSV image.
-   * This yields a binary image.
-   * @param sourceFrame The BGR image to convert
-   * @param lowerBounds The minimum values of H, S, and V that pass through the filter
-   * @param upperBounds The maximum values of H, S, and V that pass through the filter
-   * @param outputFrame The mat to put the resulting binary image onto.
-   */
-  private void HSVFilter(Mat sourceFrame, Scalar lowerBounds, Scalar upperBounds, Mat outputFrame) {
-    Imgproc.cvtColor(sourceFrame, outputFrame, Imgproc.COLOR_BGR2HSV);
-    Core.inRange(outputFrame, lowerBounds, upperBounds, outputFrame);
-  }
-  
-  public void setHSVBounds(double hMin, double sMin, double vMin, double hMax, double sMax, double vMax) {
-    hsvLowerBounds = new Scalar(hMin, sMin, vMin);
-    hsvUpperBounds = new Scalar(hMax, sMax, vMax);
-  }
-  
-  public void setHSVBounds(Scalar minBounds, Scalar maxBounds) {
-    hsvLowerBounds = minBounds;
-    hsvUpperBounds = maxBounds;
-  }
-  
-  /*
-   * Methods above this point are the basic building blocks that can be used to make vision pipelines
-   * 
-   * Methods below this point don't really have anything to do with open CV, and are more related to 
-   * getting and setting different properties of the camera.
-   */
-  
-  /**
-   * This version of calculateFocalLength should be used
-   * when using an aspect ratio that 16:9. Note that 
-   * the focal length in pixels might be different for x and y.
-   * @param numOfPixels
-   * @param fov
-   * @return
-   */
-  private static double calculateFocalLength(int numOfPixels, double fov) {
-    // Note the dimension is just split in half instead of finding the exact center, 
-    //because we're working with physical properties, and the 0th pixel is still 1 pixel.
-    double numerator = numOfPixels / 2.0;
-    double denominator = Math.tan(Math.toRadians(fov/2.0));
-    return (denominator == 0) ? 1 : (numerator / denominator);
-  }
-  
-  
-  public void configCamForVision(UsbCamera cam) {
-    cam.setFPS(30);
-    cam.setExposureManual(0);
-    cam.setBrightness(100);
-    cam.setWhiteBalanceManual(WhiteBalance.kFixedIndoor);
-    cam.setResolution(IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
-  }
-  
-  public void configCamForRegularViewing(UsbCamera cam) {
-    cam.setFPS(30);
-    cam.setExposureAuto();
-    cam.setBrightness(50);
-    cam.setWhiteBalanceAuto();
-    cam.setResolution(IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
-  }
-  
-  /*
-   * Methods below this point don't fit into any other categories, and are fairly basic.
-   * They don't really have much else to do with the rest of the code and sort of exist on their own.
-   * There are also a couple basic getters.
-   */
-  
   public void toggleCamStream() {
-    if (getCurrentCam().equals(TURRET_CAM_NAME)) {
-      setCurrentCam(GEAR_CAM_NAME);
+    if (getStreamingCamName().equals(TURRET_CAM_NAME)) {
+      setStreamingCam(GEAR_CAM_NAME);
     } else {
-      setCurrentCam(TURRET_CAM_NAME);
+      setStreamingCam(TURRET_CAM_NAME);
     }
     /* Note: The "Selected Camera Path" field 
      * in the SmartDash widget must be set to
@@ -406,28 +210,96 @@ public class CameraController {
      */
   }
   
-  public void setCurrentCam(String camName) {
+  /**
+   * Sets the streaming cam (i.e. the cam that's sending images to the smartdash)
+   * to be the the camera with the given name.
+   * @param camName The name of the camera who's stream you want to see.
+   */
+  public void setStreamingCam(String camName) {
+    /* per the 2017 FRC Control System Documentation:
+     * "If you're interested in just switching what the driver sees, 
+     * and are using SmartDashboard, the SmartDashboard CameraServer Stream Viewer 
+     * has an option ("Selected Camera Path") that reads the given NT key 
+     * and changes the "Camera Choice" to that value (displaying that camera). 
+     * The robot code then just needs to set the NT key to the correct camera name."
+     */
     NetworkTable.getTable("CameraPublisher").putString("CurrentCam", camName);
   }
   
-  public String getCurrentCam() {
-    return NetworkTable.getTable("CameraPublisher").getString("CurrentCam", 
-        "Couldn't find the value called \"CurrentCam\" in the network table called \"CameraPublisher\".");
+  /**
+   * @return The name of the camera currently
+   * sending images to the smartdash.
+   */
+  public String getStreamingCamName() {
+    String errorMessage = "Couldn't find the value of the field \"CurrentCam\""
+                          + " in the network table \"CameraPublisher\".";
+    return NetworkTable.getTable("CameraPublisher").getString("CurrentCam", errorMessage);
   }
   
-  public void publishDataToSmartDash() {
-    if (currentTarget.getArea() <= 0) {
-      SmartDashboard.putBoolean("Target Aquired", false);
+  /**
+   * Configures the given camera to be used either for image
+   * processing or for regular viewing by humans.
+   * @param cam The camera to configure.
+   * @param configForVision if you would like the cam
+   * to be configured for vision. true = yes, false = no.
+   */
+  public void configCam(UsbCamera cam, boolean configForVision) {
+    cam.setResolution(IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
+    cam.setFPS(30);
+    
+    if (configForVision) {
+      cam.setExposureManual(0);
+      cam.setBrightness(100);
+      cam.setWhiteBalanceManual(WhiteBalance.kFixedIndoor);
     } else {
-      SmartDashboard.putBoolean("Target Aquired", true);
+      cam.setExposureAuto();
+      cam.setBrightness(50);
+      cam.setWhiteBalanceAuto();
     }
-    SmartDashboard.putNumber("Distance", currentTarget.getDistance());
-    SmartDashboard.putNumber("targetErrorX", currentTarget.getErrorInDegreesX());
-    SmartDashboard.putNumber("targetErrorY", currentTarget.getErrorInDegreesY());
   }
   
-  public Target getCurrentTarget() {
-    return currentTarget;
+  /**
+   * Method for getting the focal length in terms of pixel size.
+   * Because the width and height of a pixel might not be the same, 
+   * two different representations of the focal length are needed:
+   * A) the focal length in terms of the width of 1 pixel.
+   * B) the focal length in terms of the height of 1 pixel.
+   * 
+   * @param numOfPixels
+   * For "A", give the width of the image.
+   * For "B", give the height of the image.            
+   * @param fov 
+   * For "A", give the horizontal fov of the camera.
+   * For "B", give the vertical fov of the camera.
+   *      
+   * @return The focal length in terms of either the width of a pixel, or the height of a pixel.
+   * Which of these is returned is dependent on the input parameters as described above.
+   */
+  private static double calculateFocalLength(int numOfPixels, double fov) {
+    // uses the pinhole camera model to calculate focal length
+    double numerator = numOfPixels / 2.0;
+    double denominator = Math.tan(Math.toRadians(fov/2.0));
+    return (denominator == 0) ? 1 : (numerator / denominator);
+  }
+  
+  /**
+   * Gets the most recent frame from the camera, 
+   * and stores it in the given Mat object.
+   * @param destination The OpenCv Mat to 
+   * store the image in.
+   * @return The timestamp of the frame.
+   */
+  public long getFrame(Mat destination) {
+    return turretCamFrameGrabber.grabFrame(destination, defaultTimeoutLengthSeconds);
+  }
+  
+  /**
+   * Pushes the given frame to the dashboard
+   * on the stream called "OpenCV Stream"
+   * @param img the frame to put on the dashboard.
+   */
+  public void pushFrameToDash(Mat img) {
+    outputStream.putFrame(img);
   }
   
   public static CameraController getInstance() {

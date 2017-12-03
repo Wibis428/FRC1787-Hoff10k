@@ -1,5 +1,10 @@
 package org.usfirst.frc.team1787.robot;
 
+import java.util.ArrayList;
+
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.Scalar;
 import org.usfirst.frc.team1787.robot.subsystems.DriveTrain;
 import org.usfirst.frc.team1787.robot.subsystems.Flywheel;
 import org.usfirst.frc.team1787.robot.subsystems.PickupArm;
@@ -8,7 +13,7 @@ import org.usfirst.frc.team1787.robot.subsystems.Turret;
 import org.usfirst.frc.team1787.robot.subsystems.Winch;
 import org.usfirst.frc.team1787.robot.utils.CustomJoystick;
 import org.usfirst.frc.team1787.robot.vision.CameraController;
-import org.usfirst.frc.team1787.robot.vision.Target;
+import org.usfirst.frc.team1787.robot.vision.ImageProcessor;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -58,6 +63,7 @@ public class Robot extends IterativeRobot {
   private Shooter shooter = Shooter.getInstance();
   private Winch winch = Winch.getInstance();
   private CameraController camController = CameraController.getInstance();
+  private ImageProcessor imgProcessor = ImageProcessor.getInstance();
   
   // These are only used for tuning
   private Flywheel flywheel = Flywheel.getInstance();
@@ -175,7 +181,7 @@ public class Robot extends IterativeRobot {
     if (rightStick.getSinglePress(TOGGLE_CAM_BUTTON)) {
       camController.toggleCamStream();
     }
-    camController.publishDataToSmartDash();
+    imgProcessor.publishDataToSmartDash();
   }
   
   public void runTuningCode() {
@@ -215,28 +221,47 @@ public class Robot extends IterativeRobot {
     } else if (tuningMode == 2) {
       // Tuning Mode 2 = HSV Filter Testing
       shooter.manualControl(leftStick);
+      
       double hMin = prefs.getDouble("hMin", 0);
       double sMin = prefs.getDouble("sMin", 0);
       double vMin = prefs.getDouble("vMin", 0);
+      Scalar minRange = new Scalar(hMin, sMin, vMin);
+      
       double hMax = prefs.getDouble("hMax", 180);
       double sMax = prefs.getDouble("sMax", 255);
       double vMax = prefs.getDouble("vMax", 255);
-      camController.setHSVBounds(hMin, sMin, vMin, hMax, sMax, vMax);
-      camController.showHSVFilter();
+      Scalar maxRange = new Scalar(hMax, sMax, vMax);
+      
+      Mat result = imgProcessor.getHSVFilter(minRange, maxRange);
+      camController.pushFrameToDash(result);
     } else if (tuningMode == 3) {
       // Tuning Mode 3 = Contour Filter Testing
       shooter.manualControl(leftStick);
+      
       double minArea = prefs.getDouble("minArea", 0);
       double minShapeScore = prefs.getDouble("minShapeScore", 0);
       double maxShapeScore = prefs.getDouble("maxShapeScore", 2);
-      Target.setMinArea(minArea);
-      Target.setShapeScoreBounds(minShapeScore, maxShapeScore);
-      camController.showContoursfilter(true);
+      
+      Scalar minHsvRange = imgProcessor.DEFAULT_HSV_LOWER_BOUNDS;
+      Scalar maxHsvRange = imgProcessor.DEFAULT_HSV_UPPER_BOUNDS;
+      Mat result = imgProcessor.getHSVFilter(minHsvRange, maxHsvRange);
+      
+      ArrayList<MatOfPoint> contours = imgProcessor.findContours(result);
+      for (int i = contours.size()-1; i >= 0; i--) {
+        boolean test1 = imgProcessor.passesAreaTest(contours.get(i), minArea);
+        boolean test2 = imgProcessor.passesShapeTest(contours.get(i), minShapeScore, maxShapeScore);
+        if (!(test1 && test2)) {
+          contours.remove(i);
+        }
+      }
+      
+      result = imgProcessor.drawContours(true, contours);
+      camController.pushFrameToDash(result);
     }
     
     // Publish all data to smart dash
     shooter.publishDataToSmartDash();
-    camController.publishDataToSmartDash();
+    ImageProcessor.getInstance().publishDataToSmartDash();
   }
 
   /**

@@ -1,6 +1,6 @@
 package org.usfirst.frc.team1787.robot.subsystems;
 
-import org.usfirst.frc.team1787.robot.vision.CameraController;
+import org.usfirst.frc.team1787.robot.vision.ImageProcessor;
 import org.usfirst.frc.team1787.robot.vision.Target;
 
 import edu.wpi.first.wpilibj.Joystick;
@@ -17,7 +17,7 @@ public class Shooter {
   private Feeder feeder = Feeder.getInstance();
   
   // Vision
-  private CameraController camController = CameraController.getInstance();
+  private ImageProcessor imgProcessor = ImageProcessor.getInstance();
   
   // Singleton Instance
   private static final Shooter instance = new Shooter();
@@ -38,7 +38,7 @@ public class Shooter {
   
   public void fullAutoShooting() {
     trackTarget();
-    double horizontalDistanceToTarget = camController.getCurrentTarget().getDistance();
+    double horizontalDistanceToTarget = imgProcessor.getCurrentTarget().getHorizontalDistance();
     double verticalDistanceToTarget = Target.TURRET_TO_TARGET_VERTICAL_DISTANCE;
     flywheel.setCalculatedSetpoint(horizontalDistanceToTarget, verticalDistanceToTarget);
     if (turret.getPIDController().onTarget() && flywheel.getPIDController().onTarget()) {
@@ -49,8 +49,8 @@ public class Shooter {
   }
   
   public void trackTarget() {
-    camController.runVisionProcessing();
-    turret.getPIDController().setRelativeSetpoint(camController.getCurrentTarget().getErrorInDegreesX());
+    imgProcessor.runVisionProcessing();
+    turret.getPIDController().setRelativeSetpoint(imgProcessor.getCurrentTarget().getErrorInDegreesX());
   }
   
   public void zeroSensors() {
