@@ -16,12 +16,11 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class ImageProcessor {
   
-  // Servers, Sinks and Mats (images)
-  /* The following variables are used to get images for processing,
-   * store processed images, and send processed images to the smart dash.
-   * Read the comments in the CameraController constructor and look for 
-   * other places where these variables are used for more info! 
-   * */
+  // A "Mat" is the dataformat that OpenCv stores images in.
+  // Here 2 different Mats are used:
+  // originalFrame stores the raw image from the camera
+  // (though sometimes it's drawn on to overlay information)
+  // processedFrame stores the filtered/processed image
   private CameraController camController = CameraController.getInstance();
   private Mat originalFrame = new Mat();
   private Mat processedFrame = new Mat();
@@ -31,9 +30,9 @@ public class ImageProcessor {
   public final Scalar DEFAULT_HSV_UPPER_BOUNDS = new Scalar(90, 255, 150);
   
   // Shape Filtering Parameters
-  private static double defaultMinArea = 50;
-  private static double defaultMinScore = 0.8;
-  private static double defaultMaxScore = 2.0;
+  private final double defaultMinArea = 50;
+  private final double defaultMinScore = 0.8;
+  private final double defaultMaxScore = 2.0;
   
   // Colors used to draw contours..........new Scalar(B, G, R);
   public static final Scalar COLOR_BLACK = new Scalar(0, 0, 0);
@@ -54,17 +53,16 @@ public class ImageProcessor {
   private static final ImageProcessor instance = new ImageProcessor();
 
   private ImageProcessor() {
-    
+    // initialization intentionally left blank.
   }
   
-  /**
-   * Call this method periodically to run vision! Woot!
-   */
+  /** This is the main vision pipeline. Call this method periodically to run vision! Woot! */
   public void runVisionProcessing() {
     /* Perform an HSV filter on the originalFrame to get a binary image, which is stored in processedFrame */
     getHSVFilter(DEFAULT_HSV_LOWER_BOUNDS, DEFAULT_HSV_UPPER_BOUNDS);
     
-    /* Search that binary image for contours, and store the detected contours in a list */
+    /* Search that binary image for contours, and store the detected contours in a list 
+     * in OpenCv, contours are represented by the "MatOfPoint" type. */
     ArrayList<MatOfPoint> contours = findContours(processedFrame);
     
     /* Sort through the list of contours, measuring different aspects of them to determine 
@@ -74,8 +72,11 @@ public class ImageProcessor {
     
     // if a valid target is found, it will be drawn on the orgininalFrame in green
     if (currentTarget.getHorizontalDistance() > 0) {
-      this.drawBoundingBox(bestCandidate, originalFrame, COLOR_GREEN);
-      this.drawPoint(bestCandidate, originalFrame, COLOR_GREEN);
+      Rect box = Imgproc.boundingRect(bestCandidate);
+      drawBoundingBox(box, originalFrame, COLOR_GREEN);
+      
+      Point centroid = this.getContourCenter(bestCandidate);
+      drawPoint(centroid, originalFrame, COLOR_GREEN);
     }
     
     // Push the original frame to the smartdash
@@ -87,8 +88,9 @@ public class ImageProcessor {
   
   
   /* ----------------------------------------------------------- */
-  // Methods Primarily About Filtering Contours!
+  // Methods For Filtering Contours!
   /* ----------------------------------------------------------- */
+  // TODO: explain how the "scoring system" here works.
   /**
    * @param contour
    * @param minScore
@@ -140,7 +142,7 @@ public class ImageProcessor {
   
   
   /* ----------------------------------------------------------- */
-  // Methods Primarily About Finding & Measuring Contours
+  // Methods For Finding & Measuring Contours!
   /* ----------------------------------------------------------- */
   
   public ArrayList<MatOfPoint> findContours(Mat frame) {
@@ -160,6 +162,7 @@ public class ImageProcessor {
     //double centerX = boundingBox.x + (boundingBox.width / 2.0);
     //double centerY = boundingBox.y + (boundingBox.height / 2.0);
     
+    // TODO: explain what's going on here
     Moments moments = Imgproc.moments(contour);
     double centerX = moments.get_m10() / moments.get_m00();
     double centerY = moments.get_m01() / moments.get_m00();
@@ -169,6 +172,7 @@ public class ImageProcessor {
   private double getContourPerimeter(MatOfPoint contour) {
     //MatOfPoint2f temp = new MatOfPoint2f(contour.toArray());
     
+    // TODO: Add a bit more explanation for commented out part above.
     MatOfPoint2f temp = new MatOfPoint2f();
     contour.convertTo(temp, CvType.CV_32F);
     /* The arcLength function requires a "MatOfPoint2f", not just a regular "MatOfPoint"
@@ -177,6 +181,7 @@ public class ImageProcessor {
     return Imgproc.arcLength(temp, true);
   }
   
+  // TODO: Add explanation for what this is, why it's here, and how it's used.
   private double getEquivalentRectangleAspectRatio(MatOfPoint contour) {
     /* Perimeter = 2*W + 2*H
      * Area = W*H
@@ -208,7 +213,7 @@ public class ImageProcessor {
   
   
   /* ----------------------------------------------------------- */
-  // Methods Primarily About HSV Filtering!
+  // HSV Filtering Functions!
   /* ----------------------------------------------------------- */
   
   /**
@@ -219,6 +224,10 @@ public class ImageProcessor {
    * The result of the filter is a binary image (because it's composed of only black and white pixels),
    * that indicates which pixels were/weren't within the given bounds. 
    * Pixels within the given bounds will be white, and pixel outside of the given bounds will be black.
+   * 
+   * Valid range for Hue is [0, 180]
+   * Valid range for Saturation is [0, 255]
+   * Valid range for Value is [0, 255]
    * 
    * @param lowerBounds The minimum values of H, S, and V that pass through the filter
    * @param upperBounds The maximum values of H, S, and V that pass through the filter
@@ -246,6 +255,14 @@ public class ImageProcessor {
   // Drawing Functions!
   /* ----------------------------------------------------------- */
   
+  /**
+   * Draws the given list of contours on the originalFrame
+   * @param overlay
+   * if true: draw contours directly on top of the originalFrame.
+   * if false: draw contours on a black image.
+   * @param listOfContours
+   * @return The image with contours drawn on it.
+   */
   public Mat drawContours(boolean overlay, ArrayList<MatOfPoint> listOfContours) {
     if (!overlay) {
       Core.bitwise_xor(originalFrame, originalFrame, originalFrame);
@@ -263,19 +280,17 @@ public class ImageProcessor {
     return originalFrame;
   }
   
-  public void drawBoundingBox(MatOfPoint contour, Mat frame, Scalar color) {
-    Rect box = Imgproc.boundingRect(contour);
+  public void drawBoundingBox(Rect box, Mat frame, Scalar color) {
     Point topLeft = new Point(box.x, box.y);
     Point bottomRight = new Point(box.x + box.width, box.y + box.height);
     int thickness = 1;
     Imgproc.rectangle(frame, topLeft, bottomRight, color, thickness);
   }
   
-  public void drawPoint(MatOfPoint contour, Mat frame, Scalar color) {
-    Point centroid = this.getContourCenter(contour);
+  public void drawPoint(Point point, Mat frame, Scalar color) {
     int markerSize = 3;
     int thickness = 1;
-    Imgproc.drawMarker(frame, centroid, color, Imgproc.MARKER_CROSS, markerSize, thickness, Imgproc.LINE_8);
+    Imgproc.drawMarker(frame, point, color, Imgproc.MARKER_CROSS, markerSize, thickness, Imgproc.LINE_8);
   }
   
   

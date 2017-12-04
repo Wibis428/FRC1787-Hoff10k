@@ -131,39 +131,33 @@ public class CameraController {
    * and we don't have to worry about that change having any effect on the performance of the turret.
    */
   
-  // information about both cameras
+  // camera objects are mainly used to config certain settings (resolution, exposure time, etc.)
+  private UsbCamera gearCam;
+  private UsbCamera turretCam;
+  
+  // these objects handle all the networking associated with the cameras,
+  // as well as getting individual frames from a cam. See 2017 frc control system for more info.
+  private CameraServer camServer = CameraServer.getInstance();
+  private CvSink turretCamFrameGrabber;
+  private CvSource outputStream;
+  // The max amount of time that the code will halt while waiting for an image from the turretCam.
+  private final double defaultTimeoutLengthSeconds = 3;
+  
+  // image info
   public final int IMAGE_WIDTH_PIXELS = 160;
   public final int IMAGE_HEIGHT_PIXELS = 120;
   
-  // information about the gear cam
-  private UsbCamera gearCam;
-  private final int GEAR_CAM_ID = 0;
-  private final String GEAR_CAM_NAME = "gearCam";
-  
-  // information about the turret cam
-  private UsbCamera turretCam;
-  private final int TURRET_CAM_ID = 1;
-  private final String TURRET_CAM_NAME = "turretCam";
-  
-  // physical turret cam properties (used to find position of target relative to camera)
+  // physical properties of the turretCam (used to find position of target)
+  public final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
+  public final double TURRET_CAM_HEIGHT_FROM_FLOOR = UnitConverter.inchesToMeters(57);
   private final double HORIZONTAL_FOV_DEGREES = 90;  // The current values for FOV are just place holders.
   private final double VERTICAL_FOV_DEGREES = 90;    // The actual values still need to be calculated.
   public final double FOCAL_LENGTH_PIXELS_X = calculateFocalLength(IMAGE_WIDTH_PIXELS, HORIZONTAL_FOV_DEGREES);
   public final double FOCAL_LENGTH_PIXELS_Y = calculateFocalLength(IMAGE_HEIGHT_PIXELS, VERTICAL_FOV_DEGREES);
-  /* The degrees per pixel values can be used in place of the focal length calculation if the focal length isn't known.
-   * This will yield an error that is less correct, but should ultimately get you to the desired position */
+  
+  // used for when the FOV calculation seems off, and we need to get on the field RIGHT NOW! :)
   public final double DEGREES_PER_PIXEL_X = 0.15;
   public final double DEGREES_PER_PIXEL_Y = 0.15;
-  
-  public final double TURRET_CAM_ANGLE_FROM_FLOOR_DEGREES = 36.0;
-  public final double TURRET_CAM_HEIGHT_FROM_FLOOR = UnitConverter.inchesToMeters(57);
-  
-  // objects used to handle all the networking associated with the cameras,
-  // like sending images to the smartdash.
-  private CameraServer camServer = CameraServer.getInstance();
-  private CvSink turretCamFrameGrabber;
-  private CvSource outputStream;
-  private final double defaultTimeoutLengthSeconds = 3;
   
   // Singleton Instance
   private static final CameraController instance = new CameraController();
@@ -179,24 +173,26 @@ public class CameraController {
     
     /* Initializes each camera, and links each camera to it's own Mjpeg Server
      * which automatically pushes regular (non-processed) images to the SmartDash */
-    turretCam = camServer.startAutomaticCapture(TURRET_CAM_NAME, TURRET_CAM_ID);
-    gearCam = camServer.startAutomaticCapture(GEAR_CAM_NAME, GEAR_CAM_ID);
+    turretCam = camServer.startAutomaticCapture("turretCam", 1);
+    gearCam = camServer.startAutomaticCapture("gearCam", 0);
+    // (gearCam id (0) and turretCam id (1) were empirically determined through testing)
+    // the names given are arbitrary.
     
     /* Configure settings like resolution, exposure, white balance, etc. */
     configCam(turretCam, true); // <- "true" indicates cam will be used for image processing
     configCam(gearCam, false);
-
-    // Construct the CvSink which is used to grab frames from the turret cam for processing.
+    
+    // used to grab individual frames from turret cam for the ImageProcessor.
     turretCamFrameGrabber = camServer.getVideo(turretCam);
-    // Construct the CvSource which is used to push processed frames to the dashboard for viewing.
+    // used to push processed frames to the dashboard for viewing.
     outputStream = camServer.putVideo("OpenCV Stream", IMAGE_WIDTH_PIXELS, IMAGE_HEIGHT_PIXELS);
   }
   
   public void toggleCamStream() {
-    if (getStreamingCamName().equals(TURRET_CAM_NAME)) {
-      setStreamingCam(GEAR_CAM_NAME);
+    if (getStreamingCamName().equals(turretCam.getName())) {
+      setStreamingCam(gearCam.getName());
     } else {
-      setStreamingCam(TURRET_CAM_NAME);
+      setStreamingCam(turretCam.getName());
     }
     /* Note: The "Selected Camera Path" field 
      * in the SmartDash widget must be set to
@@ -248,6 +244,7 @@ public class CameraController {
     cam.setFPS(30);
     
     if (configForVision) {
+      // these settings make it easiest to see the target
       cam.setExposureManual(0);
       cam.setBrightness(100);
       cam.setWhiteBalanceManual(WhiteBalance.kFixedIndoor);
@@ -283,7 +280,7 @@ public class CameraController {
   }
   
   /**
-   * Gets the most recent frame from the camera, 
+   * Gets the most recent frame from the turretCam, 
    * and stores it in the given Mat object.
    * @param destination The OpenCv Mat to 
    * store the image in.
@@ -295,7 +292,10 @@ public class CameraController {
   
   /**
    * Pushes the given frame to the dashboard
-   * on the stream called "OpenCV Stream"
+   * on the stream called "OpenCV Stream".
+   * You will have to select "OpenCV Stream" on the
+   * smart dashboard widget to see this.
+   * 
    * @param img the frame to put on the dashboard.
    */
   public void pushFrameToDash(Mat img) {

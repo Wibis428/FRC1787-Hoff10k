@@ -6,8 +6,6 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 
 public class Target {
-  // The camController holds info about the turretCam that's necessary to calculate
-  // the targets position relative to the cam.
   private static CameraController camController = CameraController.getInstance();
   
   // known geometry of the target
@@ -16,21 +14,16 @@ public class Target {
   public static final double CAM_TO_TARGET_VERTICAL_DISTANCE = TARGET_HEIGHT_FROM_FLOOR
                                                                - camController.TURRET_CAM_HEIGHT_FROM_FLOOR;
   public static final double TURRET_TO_TARGET_VERTICAL_DISTANCE = TARGET_HEIGHT_FROM_FLOOR;
-  /* The upper band of the target is 4 inches tall, 
-   * and the diameter of the cylinder it's wrapped around is 15 inches.
-   * This means that, when viewed head on, the target should appear as a 15x4 rectangle. */
+  // 4 inch tall target wrapped around 15 inch diameter cylinder = 15/4 aspect ratio when viewed head on.
   public static final double DESIRED_CONTOUR_ASPECT_RATIO = 15/4.0;
   
-  // Known Geometry of Image
-  /* The true center of the image isn't at width/2 or height/2 because of 0 indexing.
-   * For example, an image with a width of 120 pixels has pixels from 0 to 119 inclusive, 
-   * for a total of 120. Therefore the midpoint is at pixel 59.5 = (120 - 1) / 2.0; 
-   * */
+  // known geometry of the image
+  // The true center of the image isn't at width/2 or height/2 because of 0 indexing.
   private static final double CENTER_PIXEL_X = (camController.IMAGE_WIDTH_PIXELS - 1) / 2.0;
   private static final double CENTER_PIXEL_Y = (camController.IMAGE_HEIGHT_PIXELS - 1) / 2.0;
   
-  // should be set to false if you need to get on the field RIGHT NOW
-  // and the FOV calculations still aren't working :)
+  // used to toggle between 2 different methods of calculating error.
+  // pinhole camera model is more correct, but requires that the FOV of the turret cam be known.
   private static boolean usePinholeCameraModel = true;
 
   // member variables
@@ -47,7 +40,7 @@ public class Target {
     }
   }
   
-  /** @return How many degrees off from the center of the camera the target is (horizontal). */
+  /** @return How many degrees off from the center the target is from the turretCam (horizontal). */
   private void calculateErrorInDegreesX(double contourCenterX) {
     double errorInPixels = contourCenterX - CENTER_PIXEL_X;
       
@@ -58,7 +51,7 @@ public class Target {
     }
   }
   
-  /** @return How many degrees off from the center of the camera the target is (vertical). */
+  /** @return How many degrees off from the center the target is from the turretCam (vertical). */
   private void calculateErrorInDegreesY(double contourCenterY) {
     double errorInPixels = CENTER_PIXEL_Y - contourCenterY;
     
@@ -70,7 +63,7 @@ public class Target {
   }
   
   /**
-   * Calculates the horizontal distance between the camera and the target
+   * Calculates the horizontal distance between the turretCam and the target
    * (i.e. the distance from the cam to the target, as measured parallel to the floor).
    * @return the distance in meters
    */
