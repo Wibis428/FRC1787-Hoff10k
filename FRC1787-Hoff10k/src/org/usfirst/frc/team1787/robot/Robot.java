@@ -47,15 +47,20 @@ public class Robot extends IterativeRobot {
    * so the WINCH_DESCEND_BUTTON is never actually being used. However, it's value remains
    * here for if we ever decide to remove the ratchet. */
   
-  private final int TOGGLE_SHOOTER_CONTROL_BUTTON = 2;
+  // keeps track of the current "mode" of the shooter
+  // current options include mode 0 (manual control), and mode 1 (full auto shooting)
   private int shooterControlMode = 0;
+  private final int TOGGLE_SHOOTER_CONTROL_BUTTON = 2;
   private final int TOGGLE_CAM_BUTTON = 10;
   
   // Testing Mode Stuff
-  private final int TOGGLE_TUNING_MODE_BUTTON = -1;
-  private final int CYCLE_THROUGH_TUNING_MODES_BUTTON = -1;
   private boolean tuningModeActive = false;
+  private final int TOGGLE_TUNING_MODE_BUTTON = -1;
+  
+  // if tuning mode is active, this variable determines what
+  // exactly is being tuned
   private int tuningMode = 0;
+  private final int CYCLE_THROUGH_TUNING_MODES_BUTTON = -1;
   
   // Instances of Subsystems
   private DriveTrain driveTrain = DriveTrain.getInstance();
@@ -69,7 +74,7 @@ public class Robot extends IterativeRobot {
   private Flywheel flywheel = Flywheel.getInstance();
   private Turret turret = Turret.getInstance();
   
-  // Preferences
+  // Preferences (used to get values from the smart dash)
   Preferences prefs = Preferences.getInstance();
   
   /**
@@ -152,6 +157,7 @@ public class Robot extends IterativeRobot {
     if (leftStick.getSinglePress(TOGGLE_TUNING_MODE_BUTTON)) {
       tuningModeActive = !tuningModeActive;
       SmartDashboard.putBoolean("Tuning Mode Active", tuningModeActive);
+      shooter.stop();
     }
     
     if (tuningModeActive) {
@@ -162,7 +168,7 @@ public class Robot extends IterativeRobot {
     // Shooter
     if (leftStick.getSinglePress(TOGGLE_SHOOTER_CONTROL_BUTTON)) {
       shooter.stop();
-      shooterControlMode =  (shooterControlMode + 1) % 2;
+      shooterControlMode = (shooterControlMode + 1) % 2;
     }
     
     if (shooterControlMode == 0) {
@@ -177,7 +183,7 @@ public class Robot extends IterativeRobot {
     }
     shooter.publishDataToSmartDash();
     
-    // Cams (no processing)
+    // Cams (note that most img processing code is already called by shooter.fullAutoShooting())
     if (rightStick.getSinglePress(TOGGLE_CAM_BUTTON)) {
       camController.toggleCamStream();
     }
@@ -187,33 +193,34 @@ public class Robot extends IterativeRobot {
   public void runTuningCode() {
     if (leftStick.getSinglePress(CYCLE_THROUGH_TUNING_MODES_BUTTON)) {
       tuningMode = (tuningMode + 1) % 4;
+      shooter.stop();
     }
     
     if (tuningMode == 0) {
       // Tuning Mode 0 = Turret PID Testing
       if (!shooter.pidIsEnabled()) {
-        shooter.stop();
         double turretP = prefs.getDouble("turretP", 0);
         double turretI = prefs.getDouble("turretI", 0);
         double turretD = prefs.getDouble("turretD", 0);
         turret.getPIDController().setPID(turretP, turretI, turretD);
+        
         double turretTolerance = prefs.getDouble("turretDegreesTolerance", 0);
-        turret.getPIDController().setAbsoluteTolerance(turretTolerance); 
-        //double testFocalLength = prefs.getDouble("testFocalLength", 1);
-        //camController.setFocalLength(testFocalLength);
+        turret.getPIDController().setAbsoluteTolerance(turretTolerance);
+        
         turret.getPIDController().enable();
       }
       shooter.trackTarget();
     } else if (tuningMode == 1) {
       // Tuning Mode 1 = Flywheel PID Testing
       if (!shooter.pidIsEnabled()) {
-        shooter.stop();
         double flywheelP = prefs.getDouble("flywheelP", 0);
         double flywheelI = prefs.getDouble("flywheelI", 0);
         double flywheelD = prefs.getDouble("flywheelD", 0);
         flywheel.getPIDController().setPID(flywheelP, flywheelI, flywheelD);
+        
         double flywheelTolerance = prefs.getDouble("flywheelRPSTolerance", 0);
         flywheel.getPIDController().setAbsoluteTolerance(flywheelTolerance);
+        
         flywheel.getPIDController().enable();
       }
       double flywheelSetpoint = prefs.getDouble("flywheelSetpoint", 0);
@@ -261,7 +268,7 @@ public class Robot extends IterativeRobot {
     
     // Publish all data to smart dash
     shooter.publishDataToSmartDash();
-    ImageProcessor.getInstance().publishDataToSmartDash();
+    imgProcessor.publishDataToSmartDash();
   }
 
   /**

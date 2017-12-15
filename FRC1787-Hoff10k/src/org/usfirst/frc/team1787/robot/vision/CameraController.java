@@ -131,7 +131,7 @@ public class CameraController {
    * and we don't have to worry about that change having any effect on the performance of the turret.
    */
   
-  // camera objects are mainly used to config certain settings (resolution, exposure time, etc.)
+  // UsbCamera objects are mainly used to config camera settings (resolution, exposure time, etc.)
   private UsbCamera gearCam;
   private UsbCamera turretCam;
   
