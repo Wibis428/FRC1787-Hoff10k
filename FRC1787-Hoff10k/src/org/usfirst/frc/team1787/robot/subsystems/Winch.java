@@ -10,8 +10,8 @@ public class Winch {
   private CANTalon winchMotor = new CANTalon(WINCH_TALON_ID);
   private CANTalon winchMotor2 = new CANTalon(ADDITIONAL_WINCH_TALON_ID);
   
-  private final double DEFAULT_CLIMB_SPEED = 1.0;
-  private final double DEFAULT_DECEND_SPEED = -0.5;
+  public final double DEFAULT_CLIMB_SPEED = 1.0;
+  public final double DEFAULT_DECEND_SPEED = -0.5;
   
   // Singleton Instance
   private static final Winch instance = new Winch();
@@ -19,28 +19,18 @@ public class Winch {
   private Winch() {
     // Intentionally left blank. No initialization code required.
   }
-
-  public void climb() {
-    winchMotor.set(-DEFAULT_CLIMB_SPEED);
-    winchMotor2.set(DEFAULT_CLIMB_SPEED);
-  }
-
-  public void decend() {
-    winchMotor.set(-DEFAULT_DECEND_SPEED);
-    winchMotor2.set(DEFAULT_DECEND_SPEED);
+  
+  /**
+   * @param moveValue Positive values for going up, negative values for going down.
+   */
+  public void spin(double moveValue) {
+    winchMotor.set(-1 * moveValue);
+    winchMotor2.set(moveValue);
   }
 
   public void stop() {
     winchMotor.set(0);
     winchMotor2.set(0);
-  }
-
-  /** 
-   * @param winchSpeed Positive values for going up, negative values for going down.
-   */
-  public void manualControl(double value) {
-    winchMotor.set(-value);
-    winchMotor2.set(value);
   }
   
   public static Winch getInstance() {

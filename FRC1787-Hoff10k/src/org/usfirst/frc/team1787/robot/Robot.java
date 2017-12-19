@@ -116,39 +116,39 @@ public class Robot extends IterativeRobot {
   public void teleopPeriodic() {
     // Driving
     if (rightStick.getMagnitude() > leftStick.getMagnitude()) {
-      driveTrain.regularArcadeDrive(rightStick);
+      driveTrain.arcadeDrive(rightStick.getY(), rightStick.getX());
     } else {
       /* Use of the left stick is currently reserved for the shooter. */
-      //driveTrain.reverseArcadeDrive(leftStick);
+      //driveTrain.arcadeDrive(-1*rightStick.getY(), rightStick.getX());
     }
     
     // Gear Shifter
     if (rightStick.getSlider() < 0) {
-      driveTrain.setHighGear();
+      driveTrain.setGear(driveTrain.HIGH_GEAR);
     } else {
-      driveTrain.setLowGear();
+      driveTrain.setGear(driveTrain.LOW_GEAR);
     }
     driveTrain.publishDataToSmartDash();
     
     // Pickup Arm
     if (rightStick.getRawButton(DEPLOY_ARM_BUTTON)) {
-      pickupArm.deploy();
+      pickupArm.moveArm(pickupArm.DEPLOY);
     } else if (rightStick.getRawButton(RETRACT_ARM_BUTTON)) {
-      pickupArm.retract();
+      pickupArm.moveArm(pickupArm.RETRACT);
     }
     
     // Pickup Wheels
     if (rightStick.getRawButton(INTAKE_BUTTON)) {
-      pickupArm.intake();
+      pickupArm.spinIntake(pickupArm.DEFAULT_INTAKE_SPEED);
     } else if (rightStick.getRawButton(EXPELL_BUTTON)) {
-      pickupArm.expell();
+      pickupArm.spinIntake(-1 * pickupArm.DEFAULT_INTAKE_SPEED);
     } else {
-      pickupArm.stopPickupWheels();
+      pickupArm.spinIntake(0);
     }
     
     // Winch
     if (rightStick.getRawButton(WINCH_CLIMB_BUTTON)) {
-      winch.climb();
+      winch.spin(winch.DEFAULT_CLIMB_SPEED);
     } else {
       winch.stop();
     }

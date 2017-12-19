@@ -6,7 +6,24 @@ import org.usfirst.frc.team1787.robot.utils.CustomPIDController;
  * This interface is included to act as a guide / checklist for what methods to include
  * in each subsystem's class. Please note that this interface isn't actually 
  * implemented by any of the subsystem classes due to some slight variations in how
- * each are controlled. 
+ * each are controlled.
+ * 
+ * Each class can be thought of as a "State Controller" for a particular mechanism. For example,
+ * imagine that you have an arm on your robot that can either be extended or retracted. Those 2 configurations are 
+ * the different states that the arm can exist in (excluding the "transient" state of transitioning from 1 to the other)
+ * In order to control the arm, you want a way to be able to manipulate it's state. This corresponds to setters in your classes.
+ * What is the "state" of a mechanism? It's just a set of numbers that describe the configuration of the mechanism 
+ * 
+ * The methods you should have include:
+ * 1) setters for each of the components that have state.
+ *  -consider making frequent use cases their own method to improve clarity and maintain clean code!!!
+ *  -includes manual control (make controls make sense and feel intutitive!)
+ *  -includes sensor resetting
+ * 2) getters for each of the components that have state.
+ *  -reading data from sensors
+ *  -reading data from PIDControllers?
+ * 3) a safe stop method
+ * 4) a singleton instance getter
  * @author Simon
  *
  * @param <T>

@@ -42,7 +42,7 @@ public class Shooter {
     double verticalDistanceToTarget = Target.TURRET_TO_TARGET_VERTICAL_DISTANCE;
     flywheel.setCalculatedSetpoint(horizontalDistanceToTarget, verticalDistanceToTarget);
     if (turret.getPIDController().onTarget() && flywheel.getPIDController().onTarget()) {
-      feeder.feed();
+      feeder.spin(feeder.DEFAULT_FEEDER_SPEED);
     } else {
       feeder.stop();
     }
@@ -61,14 +61,14 @@ public class Shooter {
   public void manualControl(double turretValue, double flywheelValue, double feederValue) {
     turret.manualControl(turretValue);
     flywheel.manualControl(flywheelValue);
-    feeder.manualControl(feederValue);
+    feeder.spin(feederValue);
   }
   
   public void manualControl(Joystick stick) {
     turret.manualControl(stick.getX());
     flywheel.manualControl(stick.getY());
     if (stick.getTrigger()) {
-      feeder.feed();
+      feeder.spin(feeder.DEFAULT_FEEDER_SPEED);
     } else {
       feeder.stop();
     }

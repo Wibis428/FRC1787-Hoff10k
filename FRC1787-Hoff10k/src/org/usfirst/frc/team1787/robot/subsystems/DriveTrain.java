@@ -4,7 +4,6 @@ import org.usfirst.frc.team1787.robot.utils.UnitConverter;
 import com.ctre.CANTalon;
 
 import edu.wpi.first.wpilibj.Encoder;
-import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -36,8 +35,8 @@ public class DriveTrain {
   private final int SOLENOID_ID = 0;
   /* The boolean value that corresponds to each gear was determined through testing.
    * These booleans indicate the correct value to use when calling "solenoid.set()". */
-  private final boolean HIGH_GEAR = false;
-  private final boolean LOW_GEAR = true;
+  public final boolean HIGH_GEAR = false;
+  public final boolean LOW_GEAR = true;
   private Solenoid gearShifter = new Solenoid(SOLENOID_ID);
   
   // Singleton Instance
@@ -50,12 +49,8 @@ public class DriveTrain {
   
   // Drive Train Related Methods
   
-  public void regularArcadeDrive(Joystick stick) {
-    driveController.arcadeDrive(stick);
-  }
-
-  public void reverseArcadeDrive(Joystick stick) {
-    driveController.arcadeDrive(-stick.getY(), stick.getX());
+  public void arcadeDrive(double moveValue, double rotateValue) {
+    driveController.arcadeDrive(moveValue, rotateValue);
   }
   
   public void setLeftRightMotorOutputs(double leftOutput, double rightOutput) {
@@ -68,24 +63,19 @@ public class DriveTrain {
   
   // Gear Shifter Related Methods
   
-  public void setLowGear() {
-    if (!isInLowGear()) {
-      gearShifter.set(LOW_GEAR);
+  /**
+   * @param desiredGear use either DriveTrain.LOW_GEAR or
+   * DriveTrain.HIGH_GEAR (note that these values aren't static,
+   * so you'll need to access them from an instance).
+   */
+  public void setGear(boolean desiredGear) {
+    if (gearShifter.get() != desiredGear) {
+      gearShifter.set(desiredGear);
     }
   }
   
-  public void setHighGear() {
-    if (isInLowGear()) {
-      gearShifter.set(HIGH_GEAR);
-    }
-  }
-  
-  public boolean isInLowGear() {
+  public boolean getGear() {
     return gearShifter.get();
-  }
-
-  public void toggleGear() {
-    gearShifter.set(!gearShifter.get());
   }
   
   // Encoder Related Methods
@@ -103,9 +93,6 @@ public class DriveTrain {
     return rightEncoder;
   }
   
-  /**
-   * @param meters Whether or not to return the speed in m/s or in/s
-   */
   public double getAvgSpeed() {
     return (leftEncoder.getRate() + rightEncoder.getRate()) / 2.0;
   }
@@ -114,7 +101,13 @@ public class DriveTrain {
 
   public void publishDataToSmartDash() {
     SmartDashboard.putNumber("Average Speed (m/s)", getAvgSpeed());
-    SmartDashboard.putBoolean("Low Gear", isInLowGear());
+    
+    if (gearShifter.get() == HIGH_GEAR) {
+      SmartDashboard.putString("Current Gear", "High Gear");
+    } else {
+      SmartDashboard.putString("Current Gear", "Low Gear");
+    }
+    
     SmartDashboard.putNumber("Left Drive Encoder Ticks", leftEncoder.getRaw());
     SmartDashboard.putNumber("Right Drive Encoder Ticks", rightEncoder.getRaw());
     SmartDashboard.putNumber("Left Drive Encoder Distance (m)", leftEncoder.getDistance());

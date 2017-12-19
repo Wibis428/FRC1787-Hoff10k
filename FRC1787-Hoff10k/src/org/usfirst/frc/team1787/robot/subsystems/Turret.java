@@ -35,6 +35,7 @@ public class Turret {
   private Turret() {
     // Configure PID Controller
     turretController.setAbsoluteTolerance(TURRET_PID_ABSOLUTE_TOLERENCE_IN_DEGREES);
+    gyro.calibrate();
   }
   
   public CustomPIDController getPIDController() {
@@ -47,10 +48,6 @@ public class Turret {
   
   public void zeroSensors() {
     gyro.reset();
-  }
-  
-  public void recalibrateGyro() {
-    gyro.calibrate();
   }
 
   public void manualControl(double value) {
